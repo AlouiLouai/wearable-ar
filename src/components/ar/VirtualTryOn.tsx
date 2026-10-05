@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { FaceLandmarker, FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
-import { Glasses, Watch, Camera, RefreshCw, TriangleAlert } from "lucide-react";
+import { Glasses, Watch, Camera, RefreshCw, SwitchCamera, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Category, Product } from "@/lib/catalog";
@@ -67,6 +67,11 @@ export function VirtualTryOn({ category, product, onCategoryChange, className }:
   const [mirrored, setMirrored] = useState(true);
   const [modelState, setModelState] = useState<"loading" | "glb" | "placeholder">("loading");
   const [attempt, setAttempt] = useState(0);
+  // User camera choice; only applies to the category it was made in (each category starts on its default camera).
+  const [camChoice, setCamChoice] = useState<{ category: Category; facing?: "user" | "environment"; deviceId?: string } | null>(null);
+  const cam = camChoice?.category === category ? camChoice : null;
+  const [cameraCount, setCameraCount] = useState(0);
+  const currentCam = useRef<{ facing?: string; deviceId?: string; all: string[] }>({ all: [] });
 
   // --- Three.js scene (once) -------------------------------------------------
   useEffect(() => {
@@ -230,13 +235,22 @@ export function VirtualTryOn({ category, product, onCategoryChange, className }:
         if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error("Camera access needs a secure (HTTPS) connection and a supported browser.");
         }
-        const facingMode = category === "sunglasses" ? "user" : "environment";
+        const facingMode = cam?.facing ?? (category === "sunglasses" ? "user" : "environment");
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            ...(cam?.deviceId ? { deviceId: { exact: cam.deviceId } } : { facingMode: { ideal: facingMode } }),
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
         if (cancelled) return stream.getTracks().forEach((tr) => tr.stop());
-        setMirrored(stream.getVideoTracks()[0]?.getSettings().facingMode !== "environment");
+        const settings = stream.getVideoTracks()[0]?.getSettings();
+        setMirrored(settings?.facingMode !== "environment");
+        // device labels/ids are only available after permission is granted
+        const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput").map((d) => d.deviceId);
+        currentCam.current = { facing: settings?.facingMode, deviceId: settings?.deviceId, all };
+        setCameraCount(all.length);
         video.srcObject = stream;
         await video.play();
 
@@ -259,9 +273,21 @@ export function VirtualTryOn({ category, product, onCategoryChange, className }:
       stream?.getTracks().forEach((tr) => tr.stop());
       video.srcObject = null;
     };
-  }, [category, attempt]);
+  }, [category, attempt, cam?.facing, cam?.deviceId]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+
+  const switchCamera = useCallback(() => {
+    const { facing, deviceId, all } = currentCam.current;
+    if (facing === "user" || facing === "environment") {
+      // phones report which way the camera faces: flip front <-> back
+      setCamChoice({ category, facing: facing === "user" ? "environment" : "user" });
+    } else if (all.length > 1) {
+      // desktops/other: cycle through the available cameras
+      const next = all[(Math.max(all.indexOf(deviceId ?? ""), 0) + 1) % all.length];
+      setCamChoice({ category, deviceId: next });
+    }
+  }, [category]);
 
   const hint =
     category === "sunglasses" ? "Face the camera" : "Show the back of your hand and wrist";
@@ -278,6 +304,18 @@ export function VirtualTryOn({ category, product, onCategoryChange, className }:
         ref={canvasRef}
         className={cn("pointer-events-none absolute inset-0 size-full object-cover", mirrored && "-scale-x-100")}
       />
+
+      {cameraCount > 1 && status !== "error" && (
+        <Button
+          size="icon"
+          variant="secondary"
+          aria-label="Switch camera"
+          onClick={switchCamera}
+          className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 backdrop-blur"
+        >
+          <SwitchCamera />
+        </Button>
+      )}
 
       {/* Category switcher */}
       <div className="absolute inset-x-0 top-0 flex justify-center p-3">
