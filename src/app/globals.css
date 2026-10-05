@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
+/* Dark-mode-first luxury palette: near-black + champagne gold. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0b0d;
+  --foreground: #f5f2ea;
+  --card: #141417;
+  --card-foreground: #f5f2ea;
+  --primary: #d4af37;
+  --primary-foreground: #0b0b0d;
+  --secondary: #1f1f24;
+  --secondary-foreground: #f5f2ea;
+  --accent: #26262c;
+  --muted-foreground: #8e8c86;
+  --border: #2a2a30;
+  --ring: #d4af37;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
